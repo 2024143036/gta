@@ -1,24 +1,31 @@
 import os
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 # ==========================================================
-# GTA4/GTA5 리뷰 분석 그래프 생성 코드
+# GTA 리뷰 분석 그래프 PNG 저장 코드
 # ----------------------------------------------------------
-# 필수 파일:
-# data/auto_labeled_result.csv
-# result/mobilebert_auto_history.csv
+# 이 코드 파일이 들어있는 "같은 폴더" 안에 charts 폴더를 만들고
+# 그 안에 그래프 이미지를 저장합니다.
 #
-# 있으면 자동으로 같이 사용하는 파일:
-# data/manual_labeling_target.csv
-# result/mobilebert_manual_history.csv
+# 예:
+# 현재 파일 위치:
+# C:/Users/Administrator/Downloads/GTA2/GTA/GTA/make_gta_images_same_folder.py
 #
-# 생성 위치:
-# result/charts/
+# 저장 위치:
+# C:/Users/Administrator/Downloads/GTA2/GTA/GTA/charts/
 # ==========================================================
 
+
+BASE_DIR = Path(__file__).resolve().parent
+
+DATA_DIR = BASE_DIR / "data"
+RESULT_DIR = BASE_DIR / "result"
+CHART_DIR = BASE_DIR / "charts"
 
 LABEL_NAMES = {
     0: "Negative(0)",
@@ -27,26 +34,23 @@ LABEL_NAMES = {
 }
 
 
-def make_dirs():
-    os.makedirs("result", exist_ok=True)
-    os.makedirs("result/charts", exist_ok=True)
+def ensure_dirs():
+    CHART_DIR.mkdir(exist_ok=True)
 
 
-def load_csv_if_exists(path):
-    if os.path.exists(path):
+def load_csv(path):
+    if path.exists():
         return pd.read_csv(path)
     return None
 
 
-def clean_label_df(df):
+def preprocess_label_df(df):
     if df is None:
         return None
 
-    # review 컬럼 이름 보정
     if "review" not in df.columns and "clean_review" in df.columns:
         df["review"] = df["clean_review"]
 
-    # game 컬럼이 없으면 Unknown 처리
     if "game" not in df.columns:
         df["game"] = "Unknown"
 
@@ -58,7 +62,7 @@ def clean_label_df(df):
     return df
 
 
-def chart_auto_label_distribution(auto_df):
+def save_auto_label_distribution(auto_df):
     counts = auto_df["label"].value_counts().reindex([0, 1, 2], fill_value=0)
 
     plt.figure(figsize=(7, 5))
@@ -67,78 +71,24 @@ def chart_auto_label_distribution(auto_df):
     plt.xlabel("Label")
     plt.ylabel("Count")
     plt.tight_layout()
-    plt.savefig("result/charts/01_auto_label_distribution.png", dpi=300)
+    plt.savefig(CHART_DIR / "01_auto_label_distribution.png", dpi=300)
     plt.close()
 
-    out_df = pd.DataFrame({
-        "label": [LABEL_NAMES[i] for i in [0, 1, 2]],
-        "count": counts.values
-    })
-    out_df.to_csv("result/auto_label_distribution.csv", index=False, encoding="utf-8-sig")
 
+def save_manual_label_distribution(manual_df):
+    counts = manual_df["label"].value_counts().reindex([0, 1, 2], fill_value=0)
 
-def chart_auto_label_by_game(auto_df):
-    pivot = pd.crosstab(auto_df["game"], auto_df["label"]).reindex(columns=[0, 1, 2], fill_value=0)
-
-    x = np.arange(len(pivot.index))
-    width = 0.25
-
-    plt.figure(figsize=(9, 5))
-    for idx, label_code in enumerate([0, 1, 2]):
-        plt.bar(
-            x + (idx - 1) * width,
-            pivot[label_code].values,
-            width,
-            label=LABEL_NAMES[label_code]
-        )
-
-    plt.title("Auto Label Distribution by Game")
-    plt.xlabel("Game")
+    plt.figure(figsize=(7, 5))
+    plt.bar([LABEL_NAMES[i] for i in [0, 1, 2]], counts.values)
+    plt.title("Manual Label Distribution")
+    plt.xlabel("Label")
     plt.ylabel("Count")
-    plt.xticks(x, pivot.index)
-    plt.legend()
     plt.tight_layout()
-    plt.savefig("result/charts/02_auto_label_by_game.png", dpi=300)
-    plt.close()
-
-    pivot.to_csv("result/auto_label_by_game.csv", encoding="utf-8-sig")
-
-
-def chart_train_loss(auto_history):
-    plt.figure(figsize=(8, 5))
-    plt.plot(auto_history["epoch"], auto_history["train_loss"], marker="o", label="Auto Label")
-    plt.title("MobileBERT Training Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Training Loss")
-    plt.xticks(auto_history["epoch"])
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("result/charts/03_train_loss_auto.png", dpi=300)
+    plt.savefig(CHART_DIR / "02_manual_label_distribution.png", dpi=300)
     plt.close()
 
 
-def chart_train_valid_accuracy(auto_history):
-    plt.figure(figsize=(8, 5))
-    plt.plot(auto_history["epoch"], auto_history["train_accuracy"], marker="o", label="Train Accuracy")
-    plt.plot(auto_history["epoch"], auto_history["valid_accuracy"], marker="o", label="Validation Accuracy")
-    plt.title("MobileBERT Train / Validation Accuracy")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.xticks(auto_history["epoch"])
-    plt.ylim(0, 1)
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("result/charts/04_train_valid_accuracy_auto.png", dpi=300)
-    plt.close()
-
-
-def chart_auto_manual_label_distribution(auto_df, manual_df):
-    if manual_df is None:
-        print("⚠️ 수동 라벨 파일이 없어서 자동/수동 라벨 분포 비교 그래프는 건너뜁니다.")
-        return
-
+def save_auto_manual_label_distribution(auto_df, manual_df):
     auto_counts = auto_df["label"].value_counts().reindex([0, 1, 2], fill_value=0)
     manual_counts = manual_df["label"].value_counts().reindex([0, 1, 2], fill_value=0)
 
@@ -148,74 +98,62 @@ def chart_auto_manual_label_distribution(auto_df, manual_df):
     plt.figure(figsize=(8, 5))
     plt.bar(x - width / 2, auto_counts.values, width, label="Auto Label")
     plt.bar(x + width / 2, manual_counts.values, width, label="Manual Label")
-    plt.title("Auto Label vs Manual Label Distribution")
+    plt.title("Auto vs Manual Label Distribution")
     plt.xlabel("Label")
     plt.ylabel("Count")
     plt.xticks(x, [LABEL_NAMES[i] for i in [0, 1, 2]])
     plt.legend()
     plt.tight_layout()
-    plt.savefig("result/charts/05_auto_manual_label_distribution.png", dpi=300)
+    plt.savefig(CHART_DIR / "03_auto_manual_label_distribution.png", dpi=300)
     plt.close()
 
-    out_df = pd.DataFrame({
-        "label": [LABEL_NAMES[i] for i in [0, 1, 2]],
-        "auto_count": auto_counts.values,
-        "manual_count": manual_counts.values
-    })
-    out_df.to_csv("result/auto_manual_label_distribution.csv", index=False, encoding="utf-8-sig")
 
+def save_auto_label_by_game(auto_df):
+    pivot = pd.crosstab(auto_df["game"], auto_df["label"]).reindex(columns=[0, 1, 2], fill_value=0)
 
-def chart_auto_manual_accuracy_compare(auto_history, manual_history):
-    if manual_history is None:
-        print("⚠️ 수동 학습 결과 파일이 없어서 자동/수동 정확도 비교 그래프는 건너뜁니다.")
-        return
+    x = np.arange(len(pivot.index))
+    width = 0.25
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(auto_history["epoch"], auto_history["valid_accuracy"], marker="o", label="Auto Label")
-    plt.plot(manual_history["epoch"], manual_history["valid_accuracy"], marker="o", label="Manual Label")
-    plt.title("Validation Accuracy Comparison")
-    plt.xlabel("Epoch")
-    plt.ylabel("Validation Accuracy")
-    plt.xticks(auto_history["epoch"])
-    plt.ylim(0, 1)
-    plt.grid(True)
+    plt.figure(figsize=(9, 5))
+    for idx, label_code in enumerate([0, 1, 2]):
+        plt.bar(x + (idx - 1) * width, pivot[label_code].values, width, label=LABEL_NAMES[label_code])
+
+    plt.title("Auto Label Distribution by Game")
+    plt.xlabel("Game")
+    plt.ylabel("Count")
+    plt.xticks(x, pivot.index)
     plt.legend()
     plt.tight_layout()
-    plt.savefig("result/charts/06_valid_accuracy_auto_vs_manual.png", dpi=300)
+    plt.savefig(CHART_DIR / "04_auto_label_by_game.png", dpi=300)
     plt.close()
 
-    final_auto = float(auto_history.iloc[-1]["valid_accuracy"])
-    final_manual = float(manual_history.iloc[-1]["valid_accuracy"])
 
-    plt.figure(figsize=(7, 5))
-    plt.bar(["Auto Label", "Manual Label"], [final_auto, final_manual])
-    plt.title("Final Validation Accuracy")
-    plt.xlabel("Training Data")
-    plt.ylabel("Final Validation Accuracy")
-    plt.ylim(0, 1)
+def save_manual_label_by_game(manual_df):
+    pivot = pd.crosstab(manual_df["game"], manual_df["label"]).reindex(columns=[0, 1, 2], fill_value=0)
+
+    x = np.arange(len(pivot.index))
+    width = 0.25
+
+    plt.figure(figsize=(9, 5))
+    for idx, label_code in enumerate([0, 1, 2]):
+        plt.bar(x + (idx - 1) * width, pivot[label_code].values, width, label=LABEL_NAMES[label_code])
+
+    plt.title("Manual Label Distribution by Game")
+    plt.xlabel("Game")
+    plt.ylabel("Count")
+    plt.xticks(x, pivot.index)
+    plt.legend()
     plt.tight_layout()
-    plt.savefig("result/charts/07_final_valid_accuracy_auto_vs_manual.png", dpi=300)
+    plt.savefig(CHART_DIR / "05_manual_label_by_game.png", dpi=300)
     plt.close()
 
-    out_df = pd.DataFrame({
-        "dataset": ["auto_label", "manual_label"],
-        "final_valid_accuracy": [final_auto, final_manual]
-    })
-    out_df.to_csv("result/final_valid_accuracy_compare.csv", index=False, encoding="utf-8-sig")
 
-
-def chart_auto_manual_confusion(auto_df, manual_df):
-    if manual_df is None:
-        print("⚠️ 수동 라벨 파일이 없어서 혼동행렬 그래프는 건너뜁니다.")
-        return
-
+def save_confusion_and_agreement(auto_df, manual_df):
     n = min(len(auto_df), len(manual_df))
     a = auto_df.iloc[:n].reset_index(drop=True)
     m = manual_df.iloc[:n].reset_index(drop=True)
 
     compare_df = pd.DataFrame({
-        "game": a["game"],
-        "review": a["review"] if "review" in a.columns else "",
         "auto_label": a["label"],
         "manual_label": m["label"]
     })
@@ -232,7 +170,7 @@ def chart_auto_manual_confusion(auto_df, manual_df):
     plt.title("Auto vs Manual Label Confusion Matrix")
     plt.xlabel("Auto Label")
     plt.ylabel("Manual Label")
-    plt.xticks(np.arange(3), [LABEL_NAMES[i] for i in [0, 1, 2]], rotation=25, ha="right")
+    plt.xticks(np.arange(3), [LABEL_NAMES[i] for i in [0, 1, 2]], rotation=20, ha="right")
     plt.yticks(np.arange(3), [LABEL_NAMES[i] for i in [0, 1, 2]])
 
     for i in range(3):
@@ -240,99 +178,150 @@ def chart_auto_manual_confusion(auto_df, manual_df):
             plt.text(j, i, str(confusion.values[i, j]), ha="center", va="center")
 
     plt.tight_layout()
-    plt.savefig("result/charts/08_auto_manual_confusion_matrix.png", dpi=300)
+    plt.savefig(CHART_DIR / "06_auto_manual_confusion_matrix.png", dpi=300)
     plt.close()
 
-    compare_df["same_label"] = compare_df["auto_label"] == compare_df["manual_label"]
-    same_count = int(compare_df["same_label"].sum())
+    same_count = int((compare_df["auto_label"] == compare_df["manual_label"]).sum())
     diff_count = int(n - same_count)
     agreement_rate = same_count / n if n > 0 else 0
 
     plt.figure(figsize=(6, 5))
     plt.bar(["Same", "Different"], [same_count, diff_count])
-    plt.title(f"Auto vs Manual Label Agreement: {agreement_rate:.4f}")
+    plt.title(f"Auto vs Manual Agreement ({agreement_rate:.4f})")
     plt.xlabel("Comparison")
     plt.ylabel("Count")
     plt.tight_layout()
-    plt.savefig("result/charts/09_auto_manual_agreement.png", dpi=300)
+    plt.savefig(CHART_DIR / "07_auto_manual_agreement.png", dpi=300)
     plt.close()
 
-    compare_df.to_csv("result/auto_manual_label_compare.csv", index=False, encoding="utf-8-sig")
-    confusion.to_csv("result/auto_manual_confusion_matrix.csv", encoding="utf-8-sig")
 
-    summary_df = pd.DataFrame({
-        "total_count": [n],
-        "same_count": [same_count],
-        "different_count": [diff_count],
-        "agreement_rate": [agreement_rate]
-    })
-    summary_df.to_csv("result/auto_manual_agreement_summary.csv", index=False, encoding="utf-8-sig")
+def save_auto_train_loss(auto_history):
+    plt.figure(figsize=(8, 5))
+    plt.plot(auto_history["epoch"], auto_history["train_loss"], marker="o")
+    plt.title("Auto Label Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Training Loss")
+    plt.xticks(auto_history["epoch"])
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(CHART_DIR / "08_auto_train_loss.png", dpi=300)
+    plt.close()
+
+
+def save_manual_train_loss(manual_history):
+    plt.figure(figsize=(8, 5))
+    plt.plot(manual_history["epoch"], manual_history["train_loss"], marker="o")
+    plt.title("Manual Label Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Training Loss")
+    plt.xticks(manual_history["epoch"])
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(CHART_DIR / "09_manual_train_loss.png", dpi=300)
+    plt.close()
+
+
+def save_valid_accuracy_compare(auto_history, manual_history):
+    plt.figure(figsize=(8, 5))
+    plt.plot(auto_history["epoch"], auto_history["valid_accuracy"], marker="o", label="Auto Label")
+    plt.plot(manual_history["epoch"], manual_history["valid_accuracy"], marker="o", label="Manual Label")
+    plt.title("Validation Accuracy Comparison")
+    plt.xlabel("Epoch")
+    plt.ylabel("Validation Accuracy")
+    plt.xticks(auto_history["epoch"])
+    plt.ylim(0, 1)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(CHART_DIR / "10_valid_accuracy_comparison.png", dpi=300)
+    plt.close()
+
+
+def save_train_accuracy_compare(auto_history, manual_history):
+    plt.figure(figsize=(8, 5))
+    plt.plot(auto_history["epoch"], auto_history["train_accuracy"], marker="o", label="Auto Label")
+    plt.plot(manual_history["epoch"], manual_history["train_accuracy"], marker="o", label="Manual Label")
+    plt.title("Train Accuracy Comparison")
+    plt.xlabel("Epoch")
+    plt.ylabel("Train Accuracy")
+    plt.xticks(auto_history["epoch"])
+    plt.ylim(0, 1)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(CHART_DIR / "11_train_accuracy_comparison.png", dpi=300)
+    plt.close()
+
+
+def save_final_valid_accuracy_bar(auto_history, manual_history):
+    final_auto = float(auto_history.iloc[-1]["valid_accuracy"])
+    final_manual = float(manual_history.iloc[-1]["valid_accuracy"])
+
+    plt.figure(figsize=(7, 5))
+    plt.bar(["Auto Label", "Manual Label"], [final_auto, final_manual])
+    plt.title("Final Validation Accuracy")
+    plt.xlabel("Training Data")
+    plt.ylabel("Final Validation Accuracy")
+    plt.ylim(0, 1)
+    plt.tight_layout()
+    plt.savefig(CHART_DIR / "12_final_valid_accuracy_bar.png", dpi=300)
+    plt.close()
 
 
 def main():
-    make_dirs()
+    ensure_dirs()
 
-    auto_label_path = "data/auto_labeled_result.csv"
-    manual_label_path = "data/manual_labeling_target.csv"
-
-    auto_history_path = "result/mobilebert_auto_history.csv"
-    manual_history_path = "result/mobilebert_manual_history.csv"
-
-    auto_df = load_csv_if_exists(auto_label_path)
-    auto_history = load_csv_if_exists(auto_history_path)
+    auto_df = load_csv(DATA_DIR / "auto_labeled_result.csv")
+    manual_df = load_csv(DATA_DIR / "manual_labeling_target.csv")
+    auto_history = load_csv(RESULT_DIR / "mobilebert_auto_history.csv")
+    manual_history = load_csv(RESULT_DIR / "mobilebert_manual_history.csv")
 
     if auto_df is None:
-        print(f"❌ 자동 라벨 파일이 없습니다: {auto_label_path}")
+        print("❌ data/auto_labeled_result.csv 파일이 없습니다.")
+        return
+
+    if manual_df is None:
+        print("❌ data/manual_labeling_target.csv 파일이 없습니다.")
         return
 
     if auto_history is None:
-        print(f"❌ 자동 학습 결과 파일이 없습니다: {auto_history_path}")
+        print("❌ result/mobilebert_auto_history.csv 파일이 없습니다.")
         return
 
-    manual_df = load_csv_if_exists(manual_label_path)
-    manual_history = load_csv_if_exists(manual_history_path)
+    if manual_history is None:
+        print("❌ result/mobilebert_manual_history.csv 파일이 없습니다.")
+        return
 
-    auto_df = clean_label_df(auto_df)
-    manual_df = clean_label_df(manual_df)
+    auto_df = preprocess_label_df(auto_df)
+    manual_df = preprocess_label_df(manual_df)
 
-    print("✅ 자동 라벨 데이터:", len(auto_df), "건")
-    print("✅ 자동 학습 결과:", auto_history_path)
+    save_auto_label_distribution(auto_df)
+    save_manual_label_distribution(manual_df)
+    save_auto_manual_label_distribution(auto_df, manual_df)
+    save_auto_label_by_game(auto_df)
+    save_manual_label_by_game(manual_df)
+    save_confusion_and_agreement(auto_df, manual_df)
+    save_auto_train_loss(auto_history)
+    save_manual_train_loss(manual_history)
+    save_valid_accuracy_compare(auto_history, manual_history)
+    save_train_accuracy_compare(auto_history, manual_history)
+    save_final_valid_accuracy_bar(auto_history, manual_history)
 
-    if manual_df is not None:
-        print("✅ 수동 라벨 데이터:", len(manual_df), "건")
-    else:
-        print("⚠️ 수동 라벨 데이터는 아직 없습니다. 자동 라벨 그래프만 생성합니다.")
-
-    if manual_history is not None:
-        print("✅ 수동 학습 결과:", manual_history_path)
-    else:
-        print("⚠️ 수동 학습 결과는 아직 없습니다. 자동/수동 성능 비교 그래프는 나중에 생성됩니다.")
-
-    # 자동 라벨만으로 만들 수 있는 그래프
-    chart_auto_label_distribution(auto_df)
-    chart_auto_label_by_game(auto_df)
-    chart_train_loss(auto_history)
-    chart_train_valid_accuracy(auto_history)
-
-    # 수동 파일이 있으면 추가로 만드는 그래프
-    chart_auto_manual_label_distribution(auto_df, manual_df)
-    chart_auto_manual_accuracy_compare(auto_history, manual_history)
-    chart_auto_manual_confusion(auto_df, manual_df)
-
-    print("\n✅ 그래프 생성 완료")
-    print("저장 위치: result/charts")
-    print("\n[자동 라벨만 있어도 생성되는 그래프]")
+    print("✅ 그래프 이미지 저장 완료")
+    print("저장 폴더:", CHART_DIR)
+    print("\n생성된 파일:")
     print("01_auto_label_distribution.png")
-    print("02_auto_label_by_game.png")
-    print("03_train_loss_auto.png")
-    print("04_train_valid_accuracy_auto.png")
-
-    print("\n[수동 결과까지 있으면 추가 생성되는 그래프]")
-    print("05_auto_manual_label_distribution.png")
-    print("06_valid_accuracy_auto_vs_manual.png")
-    print("07_final_valid_accuracy_auto_vs_manual.png")
-    print("08_auto_manual_confusion_matrix.png")
-    print("09_auto_manual_agreement.png")
+    print("02_manual_label_distribution.png")
+    print("03_auto_manual_label_distribution.png")
+    print("04_auto_label_by_game.png")
+    print("05_manual_label_by_game.png")
+    print("06_auto_manual_confusion_matrix.png")
+    print("07_auto_manual_agreement.png")
+    print("08_auto_train_loss.png")
+    print("09_manual_train_loss.png")
+    print("10_valid_accuracy_comparison.png")
+    print("11_train_accuracy_comparison.png")
+    print("12_final_valid_accuracy_bar.png")
 
 
 if __name__ == "__main__":
