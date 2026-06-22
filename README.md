@@ -118,7 +118,7 @@ EDA 및 라벨링 비교에 사용할 주요 그래프는 다음과 같다.
 
 #### 자동 라벨과 수동 라벨 분포 비교
 
-![Auto Manual Label Distribution](charts/05_auto_manual_label_distribution.png)
+![Auto Manual Label Distribution](charts/03_auto_manual_label_distribution.png)
 
 ---
 
@@ -271,19 +271,19 @@ MobileBERT 학습 결과를 시각적으로 비교하기 위해 다음 차트를
 
 #### Training Loss
 
-![Training Loss](charts/03_train_loss_auto.png)
-
-#### Auto Label Training / Validation Accuracy
-
-![Training and Validation Accuracy](charts/04_train_valid_accuracy_auto.png)
+![Training Loss](charts/08_auto_train_loss.png)
 
 #### Auto vs Manual Validation Accuracy
 
-![Validation Accuracy Comparison](charts/06_valid_accuracy_auto_vs_manual.png)
+![Validation Accuracy Comparison](charts/10_valid_accuracy_comparison.png)
+
+#### Auto vs Manual Validation Accuracy
+
+![Validation Accuracy Comparison](charts/11_train_accuracy_comparison.png)
 
 #### Final Validation Accuracy
 
-![Final Validation Accuracy](charts/07_final_valid_accuracy_auto_vs_manual.png)
+![Final Validation Accuracy](charts/12_final_valid_accuracy_bar.png)
 
 ---
 
